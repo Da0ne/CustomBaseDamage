@@ -1,27 +1,20 @@
 # CustomBaseDamage
 
-```ini
-[ Custom Base Building Damage System ]
-```
-
-** What is this? **
+## What is this?
 Fully server side modification that expands on how the vanilla damage system works against Base Building items (Fences, gates, watchtowers etc)
 Supports types that inherit from `BaseBuildingBase` vanilla class
 
-```diff
-- ** Main objective:**
-```
 This mod addresses the inconsistency with how vanilla raiding works, explosives have odd penetration & splash damage behavior when it comes to base building objects. This mod introduces a more "aggressive style" of damage delivery to base building object.
 
-** How it works:**
+## How it works:
 Specific to explosives, this mod *piggy-backs* onto the vanilla damage system to verify calculations of how explosive damage is applied. 
 By using vanilla `config.cpp` defined damage values (Grenades, 40mm explosive, Plastic Explosive, Claymores, Improvised Explosives of all types)
 
-** Scenario:**
+## Scenario:
 Base walls placed in close proximity will take appropriate amount of damage based on radius, damage, armor of object hit of used explosive, the vanilla system of damage is applied first, as a "backup / to verify" this mod will do calculations to ensure damage is consistently delivered as to what is configured.
 
 ```diff
-+ **Features:**
++ Features:
 ```
 - Supports all types of vanilla base building 
 - Supports all types of custom/modded explosives (as long as it inherited `ExplosiveBase`)
@@ -31,7 +24,7 @@ Base walls placed in close proximity will take appropriate amount of damage base
 - Debug logging (disabled by default) to track how damage is delivered
 
 ```diff
-- ** Compatibility:**
+- Compatibility:
 ```
 The mod supports any type that extends from `BaseBuildingBase` if any base building mod on the workshop has it's types created off of the vanilla system, it is automatically supported.
 
