@@ -13,6 +13,8 @@ const float BBDS_FALLOFF_POWER_GRENADES = 10.6;
 const float BBDS_FALLOFF_POWER_40MM 	= 9.0;
 const float BBDS_FALLOFF_POWER_OTHER 	= 10.6;
 
+typedef Param2<vector, vector> BBDSPosParams;
+
 class BaseBuildingDamageSystem
 {
 	static ref BaseBuildingDamageSystem m_Instance;
@@ -64,6 +66,14 @@ class BaseBuildingDamageSystem
 	*/
 	static array<BaseBuildingBase> FetchBaseBuildingTargets(vector pos, float range)
 	{
+		//Calculate search dynamic range
+		float dynamicRange = CalculateMaxSplashDistance(pos, range);
+		if (dynamicRange > 1.0){
+			range = dynamicRange;
+		}
+
+		Print("FetchBaseBuildingTargets :: RANGE -> " + range);
+
 		array<BaseBuildingBase> entities = {};
 		vector minPos = pos - Vector(range, range / 2, range);
 		vector maxPos = pos + Vector(range, range / 2, range);
@@ -151,6 +161,71 @@ class BaseBuildingDamageSystem
 		return outEntities;
 	}
 
+	static float CalculateMaxSplashDistance(vector center, float radius, Object ignore = null, int iterations = 24, int layer = ObjIntersectFire)
+	{
+		float maxDist = 0.0;
+
+		array<ref BBDSPosParams> positions = {};
+
+	#ifdef DIAG_DEVELOPER
+		Debug.DestroyAllShapes();
+	#endif
+
+		float increment = Math.PI * (3.0 - Math.Sqrt(5.0));
+		float offset    = 2.0 * radius / ((float)iterations - 1.0);
+
+		for (int i = 0; i < iterations; i++)
+		{
+			// generating points on a sphere at radius
+			float z     = -radius + i * offset;
+			float r     = Math.Sqrt(radius * radius - z * z);
+			float angle = i * increment;
+			float x     = r * Math.Cos(angle);
+			float y     = r * Math.Sin(angle);
+
+			vector e_pos = center + Vector(x, z, y);
+
+			vector contact_pos, contact_dir;
+			float  hitFraction;
+			Object hitObject;
+
+			int layers = 0;
+			layers |= PhxInteractionLayers.TERRAIN;
+			layers |= PhxInteractionLayers.ROADWAY;
+			layers |= PhxInteractionLayers.ITEM_LARGE;
+			layers |= PhxInteractionLayers.BUILDING;
+			layers |= PhxInteractionLayers.VEHICLE;
+			layers |= PhxInteractionLayers.RAGDOLL;
+
+			bool hit = DayZPhysics.RayCastBullet(center, e_pos, layers, ignore, hitObject, contact_pos, contact_dir, hitFraction);
+			if (hit)
+			{
+				positions.Insert(new Param2<vector, vector>(center, contact_pos));
+			}
+
+	#ifdef DIAG_DEVELOPER
+			if (hit)
+				Debug.DrawArrow(center, contact_pos, 0.05, COLOR_WHITE);
+			else
+				Debug.DrawArrow(center, e_pos, 0.05, COLOR_YELLOW);
+	#endif
+		}
+
+		//compute max distance from collected positions
+		for (int p = 0; p < positions.Count(); p++)
+		{
+			BBDSPosParams pp = positions[p];
+			float d = vector.Distance(pp.param1, pp.param2);
+			if (d > maxDist)
+				maxDist = d;
+		}
+
+		//nothing was collected for some reason, fall back to radius
+		if (positions.Count() == 0)
+			return radius;
+
+		return maxDist;
+	}
 
 	/*
 	* Returns config.cpp based damage distance parameters on given ammoType
