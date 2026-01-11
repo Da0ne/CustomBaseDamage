@@ -33,7 +33,7 @@ modded class ExplosivesBase
 				float angV, angH = 0.0;
 				BaseBuildingDamageSystem.GetHitAngle(GetAmmoType(), angV, angH);
 
-				m_dmgTargets = BaseBuildingDamageSystem.FetchBaseBuildingTargetsCone(GetPosition(), GetDirection(), dist, angV, angH);
+				m_dmgTargets = BaseBuildingDamageSystem.FetchBaseBuildingTargetsCone(this, GetPosition(), GetDirection(), dist, angV, angH);
 			}
 			else
 			{

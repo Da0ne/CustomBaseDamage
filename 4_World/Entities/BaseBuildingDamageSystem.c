@@ -102,8 +102,11 @@ class BaseBuildingDamageSystem
 	* when there are 50+ entities within the cones viewing angles...
 	* ONLY used with Claymore deployment/setup 
 	*/
-	static array<BaseBuildingBase> FetchBaseBuildingTargetsCone(vector pos, vector dir, float dist, float verticalAngleDeg, float horizontalAngleDeg)
+	static array<BaseBuildingBase> FetchBaseBuildingTargetsCone(ExplosivesBase src, vector pos, vector dir, float dist, float verticalAngleDeg, float horizontalAngleDeg)
 	{
+		if (!src)
+			return NULL;
+
 		if (dist <= 0)
 			return NULL;
 
@@ -127,10 +130,30 @@ class BaseBuildingDamageSystem
 
 		float cosH = Math.Cos(horizontalAngleDeg * Math.DEG2RAD);
 
-		foreach(Object o : hits)
+		//collision mask
+		int layers = 0;
+		layers |= PhxInteractionLayers.TERRAIN;
+		layers |= PhxInteractionLayers.ROADWAY;
+		layers |= PhxInteractionLayers.ITEM_LARGE;
+		layers |= PhxInteractionLayers.BUILDING;
+		layers |= PhxInteractionLayers.VEHICLE;
+		layers |= PhxInteractionLayers.RAGDOLL;
+
+		// Normalize full 3D direction for the ray nudge
+		vector rayDir = dir;
+		if (rayDir.LengthSq() > 0.0001)
+			rayDir.Normalize();
+		else
+			rayDir = fwd; // fallback
+
+		foreach (Object o : hits)
 		{
 			BaseBuildingBase bbb;
 			if (!Class.CastTo(bbb, o))
+				continue;
+
+			//check if this entity already added to result out, skip!
+			if (outEntities.Find(bbb) != INDEX_NOT_FOUND)
 				continue;
 
 			vector to = bbb.GetPosition() - pos;
@@ -152,6 +175,59 @@ class BaseBuildingDamageSystem
 			float horiz = Math.Sqrt((to[0] * to[0]) + (to[2] * to[2]));
 			float pitchAbsDeg = Math.AbsFloat(Math.Atan2(to[1], horiz) * Math.RAD2DEG);
 			if (pitchAbsDeg > verticalAngleDeg)
+				continue;
+
+			//Extended logic with BulletRaycasting for more accuracy
+			//Ray start = cone origin (pos), ray end = target "center" point on the building.
+			vector rayStart = pos + (rayDir * 0.05); //small nudge to avoid starting in collider
+
+			vector rayEnd = bbb.GetPosition(); // fallback
+			vector minMax[2];
+			if (bbb.GetCollisionBox(minMax))
+			{
+				//minMax is in model space, convert center to world
+				vector centerMS = (minMax[0] + minMax[1]) * 0.5;
+				rayEnd = bbb.ModelToWorld(centerMS);
+			}
+			else
+			{
+				//if no collision box, at least aim a bit above pivot
+				rayEnd = rayEnd + Vector(0, 1.0, 0);
+			}
+
+			vector contact_pos, contact_dir;
+			float  hitFraction;
+			Object hitObject;
+
+			bool hit = DayZPhysics.RayCastBullet(rayStart, rayEnd, layers, src, hitObject, contact_pos, contact_dir, hitFraction);
+			if (!hit || !hitObject)
+				continue;
+
+			//accept only if the FIRST hit along the ray is this BaseBuildingBase (or something parented to it)
+			bool hitThisBBB = false;
+
+			BaseBuildingBase hitBBBDirect;
+			if (Class.CastTo(hitBBBDirect, hitObject))
+			{
+				hitThisBBB = (hitBBBDirect == bbb);
+			}
+			else
+			{
+				//walk up hierarchy for EntityAI hits (attachments/proxies)
+				EntityAI hitEnt = EntityAI.Cast(hitObject);
+				while (hitEnt)
+				{
+					BaseBuildingBase hitBBBUp;
+					if (Class.CastTo(hitBBBUp, hitEnt))
+					{
+						hitThisBBB = (hitBBBUp == bbb);
+						break;
+					}
+					hitEnt = hitEnt.GetHierarchyParent();
+				}
+			}
+
+			if (!hitThisBBB)
 				continue;
 
 			if (outEntities.Find(bbb) == INDEX_NOT_FOUND)
