@@ -1,6 +1,11 @@
 #ifdef SERVER
+
+#define BBDS_ENABLE_SMART_ZONE //!comment out to stop smart zone damage protection!
+#define BBDS_OVERRIDE_VANILLA  //!comment out to ENABLE vanilla damage system to assist ontop of our custom!
+
 modded class BaseBuildingBase
 {
+    private bool m_EnableDamage = false;
     protected ref map<EntityAI, int> m_dmgSources; //weak ptr
 
     void BaseBuildingBase()
@@ -24,6 +29,13 @@ modded class BaseBuildingBase
         }
         */
 
+#ifdef BBDS_OVERRIDE_VANILLA
+        if (m_EnableDamage)
+        {
+            m_EnableDamage = false;
+            return true;
+        }
+#else
         if (source && damageType == DamageType.EXPLOSION)
         {
             //record damage source
@@ -35,7 +47,7 @@ modded class BaseBuildingBase
 
             return true;
         }
-    
+#endif
         return false; //Reject all other types of damage
 	}
 
@@ -57,6 +69,7 @@ modded class BaseBuildingBase
     */
     void ApplyEstimateDamage(vector sourcePos, string ammoType, float falloffPower)
     {
+        m_EnableDamage = true;
         float indirectRange      = g_Game.ConfigGetFloat("CfgAmmo " + ammoType + " indirectHitRange");
         float indirectRangeMulti = g_Game.ConfigGetFloat("CfgAmmo " + ammoType + " indirectHitRangeMultiplier");
         float baseDamageApplied  = g_Game.ConfigGetFloat("CfgAmmo " + ammoType + " DamageApplied Health damage");
@@ -87,7 +100,14 @@ modded class BaseBuildingBase
             zone.ToLower();
 
             if (!GetConstruction().IsPartConstructed(zone))
+                continue; //ignore hitting parts that aren't constructed.
+
+            #ifdef BBDS_ENABLE_SMART_ZONE
+            if (!BaseBuildingDamageSystem.CanDamageZone(this, zone)){
+                BBDS_Print("!CANNOT HIT " + zone + " due to rules!");
                 continue;
+            }
+            #endif
 
             string cfgPath = string.Format("CfgVehicles %1 DamageSystem DamageZones %2 ArmorType FragGrenade Health damage", GetType(), zone);
             float ammoCoefDamage = g_Game.ConfigGetFloat(cfgPath);

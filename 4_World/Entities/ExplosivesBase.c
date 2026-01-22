@@ -40,7 +40,6 @@ modded class ExplosivesBase
 				//others
 				m_dmgTargets = BaseBuildingDamageSystem.FetchBaseBuildingTargets(GetPosition(), BaseBuildingDamageSystem.GetSplashDamageDistance(GetAmmoType()));
 			}
-			m_dmgTargets.Debug();
 		}
 	}
 

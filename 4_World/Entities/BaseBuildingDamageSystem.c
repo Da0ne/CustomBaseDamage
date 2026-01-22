@@ -1,6 +1,6 @@
 #ifdef SERVER
 
-#define BBDS_ENABLE_DEBUG_LOGGING //Uncomment to enable debug scripts prints
+#define BBDS_ENABLE_DEBUG_LOGGING //comment to stop debug scripts prints
 
 /*
 * Constants for damage properties & settings
@@ -13,15 +13,18 @@ const float BBDS_FALLOFF_POWER_GRENADES = 10.6;
 const float BBDS_FALLOFF_POWER_40MM 	= 9.0;
 const float BBDS_FALLOFF_POWER_OTHER 	= 10.6;
 
+typedef Param2<string, ref array<string>> BDDSZone;
 typedef Param2<vector, vector> BBDSPosParams;
 
 class BaseBuildingDamageSystem
 {
+	static ref DamageGuardRegistry 	    m_Reg;
 	static ref BaseBuildingDamageSystem m_Instance;
 	static bool CreateInst = Init();
 	static bool Init()
 	{
-		m_Instance = new BaseBuildingDamageSystem();
+		m_Instance   = new BaseBuildingDamageSystem();
+		m_Reg 		 = new DamageGuardRegistry();
 		return true;
 	}
 
@@ -53,11 +56,42 @@ class BaseBuildingDamageSystem
 
 				if (!target.FindUnprocessedDamageSrc(src))
 				{
-					Print(string.Format("ExplosionEffectsEx -> target %1 was not processed by engine damage, applying custom!", target));
+					BBDS_Print(string.Format("ExplosionEffectsEx -> target %1 was not processed by engine damage, applying custom!", target));
 					target.ApplyEstimateDamage(hitInfo.GetPosition(), ammoType, BBDS_FALLOFF_POWER_40MM);
 				}
 			}
 		}
+	}
+
+	static bool CanDamageZone(BaseBuildingBase obj, string targetZone)
+	{
+		if (!obj || targetZone == "")
+			return true;
+
+		string typeName = obj.GetType();
+		typeName.ToLower();
+		DamageGuardProfile profile = m_Reg.GetProfile(typeName);
+
+		//No profile => no guards
+		if (!profile)
+			return true;
+
+		array<string> protectors;
+		if (!profile.GuardsByTarget.Find(targetZone, protectors))
+			return true; // no rule for this zone => allow
+
+		Construction construct = obj.GetConstruction();
+		if (!construct)
+			return true; //if it doesn't support part construction
+
+		// If any protector is built => block
+		foreach(string protectorZone : protectors)
+		{
+			if (construct.IsPartConstructed(protectorZone))
+				return false;
+		}
+
+		return true;
 	}
 
 	/*
@@ -72,7 +106,7 @@ class BaseBuildingDamageSystem
 			range = dynamicRange;
 		}
 
-		Print("FetchBaseBuildingTargets :: RANGE -> " + range);
+		BBDS_Print("FetchBaseBuildingTargets :: RANGE -> " + range);
 
 		array<BaseBuildingBase> entities = {};
 		vector minPos = pos - Vector(range, range / 2, range);
