@@ -7,8 +7,8 @@
 * FALL OFF POWER: 1.0 = linear, >1 = steeper drop (less damage when further away), <1 = flatter
 * Changing falloffPower to higher value will cause a significant damage drop off based on distance!
 */
-const float BBDS_FALLOFF_POWER_CLAYMORE = 8.0;
-const float BBDS_FALLOFF_POWER_PLASTIC  = 8.0;
+const float BBDS_FALLOFF_POWER_CLAYMORE = 6.0;
+const float BBDS_FALLOFF_POWER_PLASTIC  = 5.0;
 const float BBDS_FALLOFF_POWER_GRENADES = 10.6;
 const float BBDS_FALLOFF_POWER_40MM 	= 9.0;
 const float BBDS_FALLOFF_POWER_OTHER 	= 10.6;
@@ -48,13 +48,22 @@ class BaseBuildingDamageSystem
 			if (!hitTargets || hitTargets.Count() <= 0)
 				return;
 
+			//record world position of where projectile landed
+			M79_Base launcher;
+			if (Class.CastTo(launcher, src))
+			{
+				launcher.SetLastHitProjectilePos(hitInfo.GetPosition());
+			}
+
+			EntityAI src_entity = EntityAI.Cast(src);
+
 			//validate target has been hit by this explosive
 			foreach(BaseBuildingBase target : hitTargets)
 			{
 				if (!target)
 					continue;
 
-				if (!target.FindUnprocessedDamageSrc(src))
+				if (!target.FindUnprocessedDamageSrc(src_entity))
 				{
 					BBDS_Print(string.Format("ExplosionEffectsEx -> target %1 was not processed by engine damage, applying custom!", target));
 					target.ApplyEstimateDamage(hitInfo.GetPosition(), ammoType, BBDS_FALLOFF_POWER_40MM);

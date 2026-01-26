@@ -8,6 +8,7 @@ modded class ExplosivesBase
 {
 	protected ref Timer	m_DmgTimer;
 	protected ref array<BaseBuildingBase> m_dmgTargets; //weak ptr
+	protected static ref array<typename> M_IGNORE_TYPES = {ImprovisedExplosive, ImprovisedExplosivePlacing, Grenade_ChemGas};
 
 	void ExplosivesBase()
 	{
@@ -17,6 +18,10 @@ modded class ExplosivesBase
 	override void EEItemLocationChanged(notnull InventoryLocation oldLoc, notnull InventoryLocation newLoc)
 	{
 		super.EEItemLocationChanged(oldLoc, newLoc);
+
+		//ignore container, it's not an actual explosive
+		if (M_IGNORE_TYPES.Find(Type()) > -1)
+			return;
 
 		m_dmgTargets = {}; //reset anytime this entity gets it's location changed
 		InventoryLocationType locType = newLoc.GetType();

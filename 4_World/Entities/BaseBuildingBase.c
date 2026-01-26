@@ -5,12 +5,21 @@
 
 modded class BaseBuildingBase
 {
-    private bool m_EnableDamage = false;
     protected ref map<EntityAI, int> m_dmgSources; //weak ptr
+    protected ref array<string> m_dmg_zones;
 
     void BaseBuildingBase()
     {
         m_dmgSources = new map<EntityAI, int>;
+    }
+
+    override void EOnInit(IEntity other, int extra)
+    {
+        BBDS_Print("BaseBuildingBase::EOnInit!");
+
+        DamageZoneMap zonesMap = new DamageZoneMap();
+        DamageSystem.GetDamageZoneMap(this, zonesMap);
+        m_dmg_zones = zonesMap.GetKeyArray();
     }
 
     /*
@@ -29,13 +38,6 @@ modded class BaseBuildingBase
         }
         */
 
-#ifdef BBDS_OVERRIDE_VANILLA
-        if (m_EnableDamage)
-        {
-            m_EnableDamage = false;
-            return true;
-        }
-#else
         if (source && damageType == DamageType.EXPLOSION)
         {
             //record damage source
@@ -45,10 +47,31 @@ modded class BaseBuildingBase
             m_dmgSources.Insert(source, 1);
             BBDS_Print(string.Format("%1::InsertDamageSource -> %2 COUNT: %3", GetType(), source, m_dmgSources.Count()));
 
-            return true;
-        }
+#ifdef BBDS_ENABLE_SMART_ZONE
+            BBDS_Print("<< IGNORE VANILLA DAMAGE >>");
+
+            float falloffPower = BBDS_FALLOFF_POWER_OTHER;
+            vector dmgPos;
+            M79_Base launcher;
+            ExplosivesBase explosive;
+            if (Class.CastTo(explosive, source))
+            {
+                falloffPower = explosive.GetFallOffPower();
+                dmgPos       = source.GetPosition();
+            }
+            else if (Class.CastTo(launcher, source))
+            {
+                falloffPower = BBDS_FALLOFF_POWER_40MM;
+                dmgPos       = launcher.GetLastHitProjectilePos();
+            }
+            
+            ApplyEstimateDamage(dmgPos, ammo, falloffPower);
+            return false;
+#else
+            return true; //allow vanilla to do it's own damage calculations ontop of our system.
 #endif
-        return false; //Reject all other types of damage
+        }
+        return false; //reject all other types of damage
 	}
 
     bool FindUnprocessedDamageSrc(EntityAI src)
@@ -69,14 +92,9 @@ modded class BaseBuildingBase
     */
     void ApplyEstimateDamage(vector sourcePos, string ammoType, float falloffPower)
     {
-        m_EnableDamage = true;
         float indirectRange      = g_Game.ConfigGetFloat("CfgAmmo " + ammoType + " indirectHitRange");
         float indirectRangeMulti = g_Game.ConfigGetFloat("CfgAmmo " + ammoType + " indirectHitRangeMultiplier");
         float baseDamageApplied  = g_Game.ConfigGetFloat("CfgAmmo " + ammoType + " DamageApplied Health damage");
-
-        DamageZoneMap zonesMap = new DamageZoneMap();
-        DamageSystem.GetDamageZoneMap(this, zonesMap);
-        array<string> zones = zonesMap.GetKeyArray();
 
         float inner = indirectRange;
         float outer = indirectRange * indirectRangeMulti;
@@ -95,7 +113,7 @@ modded class BaseBuildingBase
         float atten = Math.Pow(1.0 - u, falloffPower);
 
         BBDS_Print("========");
-        foreach(string zone : zones)
+        foreach(string zone : m_dmg_zones)
         {
             zone.ToLower();
 
